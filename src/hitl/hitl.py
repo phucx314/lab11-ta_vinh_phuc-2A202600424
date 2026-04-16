@@ -65,32 +65,41 @@ class ConfidenceRouter:
         Returns:
             RoutingDecision with routing action and metadata
         """
-        # TODO 12: Implement routing logic
-        #
-        # 1. Check if action_type is in HIGH_RISK_ACTIONS
-        #    -> If yes: always escalate (action="escalate", priority="high",
-        #       requires_human=True, reason="High-risk action: {action_type}")
-        #
-        # 2. Check confidence thresholds:
-        #    - confidence >= 0.9:
-        #      action="auto_send", priority="low",
-        #      requires_human=False, reason="High confidence"
-        #
-        #    - 0.7 <= confidence < 0.9:
-        #      action="queue_review", priority="normal",
-        #      requires_human=True, reason="Medium confidence — needs review"
-        #
-        #    - confidence < 0.7:
-        #      action="escalate", priority="high",
-        #      requires_human=True, reason="Low confidence — escalating"
+        # 1. High-risk actions always escalate regardless of confidence
+        if action_type in HIGH_RISK_ACTIONS:
+            return RoutingDecision(
+                action="escalate",
+                confidence=confidence,
+                reason=f"High-risk action: {action_type}",
+                priority="high",
+                requires_human=True,
+            )
 
-        return RoutingDecision(
-            action="auto_send",
-            confidence=confidence,
-            reason="TODO: implement routing logic",
-            priority="low",
-            requires_human=False,
-        )  # TODO: Replace with implementation
+        # 2. Route based on confidence thresholds
+        if confidence >= self.HIGH_THRESHOLD:
+            return RoutingDecision(
+                action="auto_send",
+                confidence=confidence,
+                reason="High confidence",
+                priority="low",
+                requires_human=False,
+            )
+        elif confidence >= self.MEDIUM_THRESHOLD:
+            return RoutingDecision(
+                action="queue_review",
+                confidence=confidence,
+                reason="Medium confidence — needs review",
+                priority="normal",
+                requires_human=True,
+            )
+        else:
+            return RoutingDecision(
+                action="escalate",
+                confidence=confidence,
+                reason="Low confidence — escalating",
+                priority="high",
+                requires_human=True,
+            )
 
 
 # ============================================================
@@ -109,27 +118,50 @@ class ConfidenceRouter:
 hitl_decision_points = [
     {
         "id": 1,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Large Transaction Approval",
+        "trigger": "Customer requests a money transfer exceeding 50,000,000 VND "
+                   "or any international wire transfer.",
+        "hitl_model": "human-in-the-loop",
+        "context_needed": "Transaction amount, sender/receiver account details, "
+                          "transaction history for the past 30 days, fraud risk score.",
+        "example": "A customer asks to transfer 200,000,000 VND to a new account "
+                   "that was just added. The AI flags the transaction because the "
+                   "amount is unusually high and the recipient is new. A human "
+                   "agent reviews the transaction details, verifies the customer's "
+                   "identity via phone, and either approves or rejects.",
     },
     {
         "id": 2,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Customer Complaint Escalation",
+        "trigger": "AI detects negative sentiment with confidence < 0.8, or the "
+                   "customer explicitly requests to speak to a human agent, or "
+                   "the complaint involves regulatory/legal matters.",
+        "hitl_model": "human-on-the-loop",
+        "context_needed": "Full conversation history, customer sentiment score, "
+                          "account status, previous complaint records, and the "
+                          "AI's drafted response for review.",
+        "example": "A customer writes: 'I was charged twice for the same ATM "
+                   "withdrawal and I want a refund NOW or I'm calling the regulator.' "
+                   "The AI drafts a response but queues it for human review because "
+                   "it involves a potential billing error and regulatory threat. "
+                   "The human supervisor reviews and adjusts the response before sending.",
     },
     {
         "id": 3,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Fraud Detection Tiebreaker",
+        "trigger": "The fraud detection system and the AI agent disagree on whether "
+                   "a transaction is suspicious (one flags it, the other doesn't), "
+                   "or the fraud score is in the ambiguous range (0.4-0.6).",
+        "hitl_model": "human-as-tiebreaker",
+        "context_needed": "Fraud score from the ML model, AI agent's risk assessment, "
+                          "transaction details, customer's location/device info, "
+                          "historical spending patterns.",
+        "example": "A customer's card is used for a 5,000,000 VND purchase at "
+                   "an electronics store in a different city. The ML fraud model "
+                   "gives a risk score of 0.52 (borderline). The AI agent thinks "
+                   "it's legitimate based on the customer's purchase history. A "
+                   "human fraud analyst reviews both assessments and decides to "
+                   "allow the transaction but send an SMS verification to the customer.",
     },
 ]
 
